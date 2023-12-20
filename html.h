@@ -346,7 +346,7 @@ const char MAIN_HTML[] PROGMEM = R"=====(
       document.getElementById("slider").value = global_data["pwm"];
     }
 
-
+    // SEND DATA helper functions ##################################################
     function update_local_values(client_data){
     // This function is meant to update the button's graphic instantly
     // so we don't have to wait for the polling response from the server.

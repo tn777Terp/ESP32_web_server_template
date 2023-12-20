@@ -128,7 +128,7 @@ void task_clock_main(void *pvParameters){
   xLastWakeTime = xTaskGetTickCount();
 
   while(1){
-    if (xSemaphoreTake(mutex.time, 0) == pdTRUE) {
+    if(xSemaphoreTake(mutex.time, 0) == pdTRUE){
       digitalWrite(INTERNAL_LED_PIN, internal_led_state);
       internal_led_state = !internal_led_state;
       
@@ -140,6 +140,9 @@ void task_clock_main(void *pvParameters){
       if(global_data.minutes >= 60){
         global_data.hours++;
         global_data.minutes = 0;
+      }
+      if(global_data.hours >= 24){
+        global_data.hours   = 0;
       }
 
       xSemaphoreGive(mutex.time);
@@ -164,25 +167,25 @@ void sync_data(AsyncWebServerRequest *request, JsonVariant &json) {
 
   // Check if client data is same as server. 
   StaticJsonDocument<512> m2s_data;
-  uint8_t is_synced = 1;
+  bool is_synced = true;
 
   if(client_data["hr"].as<uint8_t>() != global_data.hours){
     m2s_data["hr"] = global_data.hours;
-    is_synced = 0;
+    is_synced = false;
   }
   if(client_data["min"].as<uint8_t>() != global_data.minutes){
     m2s_data["min"] = global_data.minutes;
-    is_synced = 0;
+    is_synced = false;
   }
   if(client_data["btn"].as<uint16_t>() != (uint16_t)global_data.buttons){ // casting to 16-bit to see sign bit
     m2s_data["btn"] = global_data.buttons;
-    is_synced = 0;
+    is_synced = false;
   }
   if(client_data["pwm"].as<uint16_t>() != global_data.pwm){
     if(xSemaphoreTake(mutex.pwm, 0) == pdTRUE){
       m2s_data["pwm"] = global_data.pwm;  // pwm > 1-byte in size. so we need a mutex to make sure 
       xSemaphoreGive(mutex.pwm);          // both bytes are read without race condition.
-    } is_synced = 0;
+    } is_synced = false;
   }
 
   // Repond with empty json if data is synced
@@ -242,13 +245,7 @@ void m_recv_data(AsyncWebServerRequest *request, JsonVariant &json) {
 
   // Handling time data
   if(client_data.containsKey("g_time")){
-    if(xSemaphoreTake(mutex.time, portMAX_DELAY) == pdTRUE){
-      global_data.hours   = client_data["hr"].as<uint8_t>();
-      global_data.minutes = client_data["min"].as<uint8_t>();
-      global_data.seconds = client_data["sec"].as<uint8_t>();
-      // Serial.printf("t: %hhu, %hhu, %hhu\n", global_data.hours, global_data.minutes, global_data.seconds);
-      xSemaphoreGive(mutex.time);
-    }
+    update_global_time(client_data);
     request->send(200, "application/json", "{\"server\":\"g_time recieved\"}");
     return;
   }
@@ -256,11 +253,15 @@ void m_recv_data(AsyncWebServerRequest *request, JsonVariant &json) {
   // Handling btn0-btn7 data
   if(client_data.containsKey("btn")){
     update_global_button(client_data["btn"].as<uint8_t>());
+    request->send(200, "application/json", "{\"server\":\"btn recieved\"}");
+    return;
   }
 
   // Handling slider value
   if(client_data.containsKey("pwm")){
     update_global_pwm(client_data["pwm"].as<uint16_t>());
+    request->send(200, "application/json", "{\"server\":\"pwm recieved\"}");
+    return;
   }
 
   // Handling example_data coming from client
@@ -286,8 +287,18 @@ void m_recv_data(AsyncWebServerRequest *request, JsonVariant &json) {
 // #########################################################################
 // HELPER FUNCTIONS
 // #########################################################################
+void update_global_time(JsonObject client_data){
+  if(xSemaphoreTake(mutex.time, portMAX_DELAY) == pdTRUE){
+    global_data.hours   = client_data["hr"].as<uint8_t>();
+    global_data.minutes = client_data["min"].as<uint8_t>();
+    global_data.seconds = client_data["sec"].as<uint8_t>();
+    // Serial.printf("t: %hhu, %hhu, %hhu\n", global_data.hours, global_data.minutes, global_data.seconds);
+    xSemaphoreGive(mutex.time);
+  }
+}
+
 void update_global_button(uint8_t flag_bit){
-  // Serial.printf("flag: %hhu\n", flag_bit);
+  // Serial.printf("flag: %02hX\n", flag_bit);
   /* Sets flag bit for buttons */
   if(xSemaphoreTake(mutex.buttons, 0) == pdTRUE){
     global_data.buttons ^= flag_bit;    // Toggle flag bit
