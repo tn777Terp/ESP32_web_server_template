@@ -144,14 +144,12 @@ const char MAIN_HTML[] PROGMEM = R"=====(
     // #########################################################################
     // MAIN
     // #########################################################################
-    // GLOBAL VARIABLES
-    var xhttp = new XMLHttpRequest();
-
     function main_setup(){
-
+      /* Put setup code here*/
 
       setInterval(main_loop, 1000);
     }
+
 
     function main_loop(){
       var global_data_buf = global_data;
@@ -346,7 +344,7 @@ const char MAIN_HTML[] PROGMEM = R"=====(
       document.getElementById("slider").value = global_data["pwm"];
     }
 
-
+    // SEND DATA helper functions ##################################################
     function update_local_values(client_data){
     // This function is meant to update the button's graphic instantly
     // so we don't have to wait for the polling response from the server.
